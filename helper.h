@@ -10,7 +10,7 @@
 #define BUF_SIZE 8192
 #define PATH_MAX 1024
 #define HEADER_LEN 1024
-#define SERVER_PORT 9999
+#define MAX(a,b) (((a)>(b))?(a):(b))
 
 extern const char CRLF[];
 extern const char CRLF2[];
@@ -123,7 +123,12 @@ struct buf {
 
     int allocated;
 
+    int client_sock; // socket to browser
+    int server_sock; // socket to web server
+
 };
+
+
 
 void init_buf(struct buf *bufp);
 //void clear_buf(struct buf *bufp);
@@ -138,5 +143,10 @@ int push_fd(struct buf* bufp);
 void req_enqueue(struct req_queue *q, struct http_req *p);
 struct http_req *req_dequeue(struct req_queue *q);
 void print_queue(struct req_queue *q);
+
+int clientSock2ServerSock(int clientSock);
+int serverSock2ClientSock(int serverSock);
+int isClientSock(int sock);
+
 
 #endif

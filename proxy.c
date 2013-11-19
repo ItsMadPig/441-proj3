@@ -20,6 +20,13 @@
 #include "http_parser.h"
 
 #define DEBUG 1
+int serverSock2ClientSock(int server_sock){
+	return 1;
+}
+
+int isClientSock(int sock){
+	return 1;
+}
 
 int create_response(struct buf *bufp){
 	return 1;
@@ -49,211 +56,304 @@ int main(int argc, char* argv[])
 	return EXIT_FAILURE;
     }
 
-    int sock, client_sock, server_sock;
+    int master_sock, client_sock, server_sock;
     int recv_ret;
     socklen_t cli_size;
-    struct sockaddr_in addr, cli_addr, server_addr;
+    struct sockaddr_in addr, cli_addr, serv_addr;
     //    char buf[BUF_SIZE];
     struct buf* buf_pts[MAX_SOCK]; // array of pointers to struct buf
+
     char clientIP[INET6_ADDRSTRLEN];
-    fd_set read_client_fds, write_client_fds;
-    fd_set master_read_client_fds, master_write_client_fds;
-    int maxfd, i;
+    fd_set read_fds, write_fds;
+    fd_set master_read_fds, master_write_fds;
+    int maxfd, i, isClient, temp;
+
+
     const int LISTEN_PORT = atoi(argv[1]);
     char FAKE_IP[sizeof(argv[2])];
-
-
-
     strcpy(FAKE_IP, argv[2]);
+
     printf("Entered Listen_port: %d, ", LISTEN_PORT);
     printf("Entered Fake_ip: %s\n",FAKE_IP);
     fprintf(stdout, "----- Echo Server -----\n");
-    
+
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_port = htons(LISTEN_PORT);
+
+
+
+	memset(&serv_addr, 0, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_addr.s_addr = inet_addr(FAKE_IP);
+	serv_addr.sin_port = htons(8080);
+
+
+
+
+
     /* all networked programs must create a socket */
-    if ((sock = socket(PF_INET, SOCK_STREAM, 0)) == -1)
+    if ((master_sock = socket(PF_INET, SOCK_STREAM, 0)) == -1)
     {
         fprintf(stderr, "Failed creating client socket.\n");
         return EXIT_FAILURE;
     }
 
-    if ((server_sock = socket(PF_INET, SOCK_STREAM, 0)) == -1)
-    {
-        fprintf(stderr, "Failed creating server socket.\n");
-        return EXIT_FAILURE;
-    }
-
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(LISTEN_PORT);
-    addr.sin_addr.s_addr = INADDR_ANY;
-
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(SERVER_PORT);
-    server_addr.sin_addr.s_addr = inet_addr(FAKE_IP);
-
     /* servers bind sockets to ports---notify the OS they accept connections */
-    if (bind(sock, (struct sockaddr *) &addr, sizeof(addr)))
+    if (bind(master_sock, (struct sockaddr *) &addr, sizeof(addr)))
     {
-        close_socket(sock);
+        close_socket(master_sock);
         fprintf(stderr, "Failed binding client socket.\n");
         return EXIT_FAILURE;
     }
 
-  
-    if (listen(sock, 10))
+    if (listen(master_sock, 10))
     {
-        close_socket(sock);
+        close_socket(master_sock);
         fprintf(stderr, "Error listening on client socket.\n");
         return EXIT_FAILURE;
     }
 
-    if (bind(server_sock, (struct sockaddr *) &server_addr, sizeof(server_addr)))
-    {
-        close_socket(server_sock);
-        close_socket(sock);
-        fprintf(stderr, "Failed binding server socket.\n");
-        return EXIT_FAILURE;
-    }
+    printf("master_sock: %d\n", master_sock);
 
-  
-    if (listen(server_sock, 10))
-    {
-        close_socket(server_sock);
-        close_socket(sock);
-        fprintf(stderr, "Error listening on server socket.\n");
-        return EXIT_FAILURE;
-    }
+    /* make copies of read_fds and write_fds */
+    FD_ZERO(&master_write_fds);
+    FD_ZERO(&master_read_fds);
 
-
-
-    /* make copies of read_client_fds and write_client_fds */
-    FD_ZERO(&master_write_client_fds);
-    FD_ZERO(&master_read_client_fds);
-
-    FD_SET(sock, &master_read_client_fds);
+    FD_SET(master_sock, &master_read_fds);
     
-    maxfd = sock;
+    maxfd = master_sock;
 
     /* run until coming across errors */
-    while (1) {
+    while (1){
 
-	/* reset read_client_fds and write_client_fds  */
-	read_client_fds = master_read_client_fds;
-	write_client_fds = master_write_client_fds;
+	/* reset read_fds and write_fds  */
+	read_fds = master_read_fds;
+	write_fds = master_write_fds;
+	//read_server_fds = master_read_server_fds;
+	//write_server_fds = master_write_server_fds;
 
-	if (select(maxfd+1, &read_client_fds, &write_client_fds, NULL, NULL) == -1) {
+	if (select(maxfd+1, &read_fds, &write_fds, NULL, NULL) == -1) {
 	    perror("Error! select");
-	    close_socket(sock);
+	    close_socket(master_sock);
 	    clear_buf_array(buf_pts, maxfd);
 	    return EXIT_FAILURE;
 	} 
 	
-	/* check file descriptors in read_client_fds and write_client_fds*/
+	/* check file descriptors in read_fds and write_fds*/
 	for (i = 0; i <= maxfd; i++) {
 
-	    /* check fd in read_client_fds */
-	    if (FD_ISSET(i, &read_client_fds)) {
+	    /* check fd in read_fds */
+	    if (FD_ISSET(i, &read_fds)) {
 
-		if (i == sock) {
+		if (i == master_sock) {
 		    /* listinging sockte is ready, server receives new connection */
 
-		    if ((client_sock = accept(sock, (struct sockaddr *)&cli_addr, &cli_size)) == -1){
+		    if ((client_sock = accept(master_sock, (struct sockaddr *)&cli_addr, &cli_size)) == -1){
 			perror("Error! accept error! ignore it");
 		    } else {
 
-			dbprintf("Server: received new connection from %s, ", inet_ntop(AF_INET, &(cli_addr.sin_addr), clientIP, INET6_ADDRSTRLEN)); 
-			dbprintf("socket %d is created\n", client_sock); // debug print
+				dbprintf("Server: received new connection from %s, ", inet_ntop(AF_INET, &(cli_addr.sin_addr), clientIP, INET6_ADDRSTRLEN)); 
+				dbprintf("socket %d to web browser is created\n", client_sock); // debug print
 
-			/* alloc buffer only if the client_sock is smaller than MAX_SOCK  */
-			if (!is_2big(client_sock)) {
+				/* alloc buffer only if the client_sock is smaller than MAX_SOCK  */
+				if (!is_2big(client_sock)) {
 
-			    FD_SET(client_sock, &master_read_client_fds);
-			    buf_pts[client_sock] = (struct buf*) calloc(1, sizeof(struct buf));
-			    init_buf(buf_pts[client_sock]); // initialize struct buf
-			    dbprintf("buf_pts[%d] allocated, rbuf_free_size:%d\n", client_sock, buf_pts[client_sock]->rbuf_free_size);
 
-			    /* track maxfd */
-			    if (client_sock > maxfd)
-				maxfd = client_sock;
+					/*server socket*/
+				    if ((server_sock = socket(AF_INET, SOCK_STREAM, 0)) == -1){
+				        fprintf(stderr, "Failed creating server socket.\n");
+				        return EXIT_FAILURE;
+				    }
+				    printf("server_sock is %d\n", server_sock);
 
-			} else {
-				// send error
-			    close_socket(client_sock);
-			}	    
+			        
+					if (connect(server_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0){
+					    perror("ERROR! connection error\n");
+					    close_socket(client_sock);
+					    return EXIT_FAILURE;
+				    }
+
+					//allocate and initialize for socket to browser
+				    buf_pts[client_sock] = (struct buf*) calloc(1, sizeof(struct buf));
+				    init_buf(buf_pts[client_sock]); // initialize struct buf
+				    dbprintf("buf_pts[%d] allocated, rbuf_free_size:%d\n", client_sock, buf_pts[client_sock]->rbuf_free_size);
+				    printf("Socket %d to web server is created\n", server_sock);
+
+				    buf_pts[client_sock]->client_sock = client_sock;
+				    buf_pts[client_sock]->server_sock = server_sock;
+
+				    /* track maxfd */
+				    if (client_sock > maxfd)
+						maxfd = client_sock;
+					
+					if (server_sock > maxfd)
+						maxfd = server_sock;
+
+					
+
+				    FD_SET(client_sock, &master_read_fds);
+
+
+				} else {
+					// send error
+				    close_socket(client_sock);
+				}	    
+
 		    }
 		    
 		} else {
-		    /* conneciton socket is ready, read */
+			/* conneciton socket is ready, read */
 
 		    /* recv_ret -1: recv error; 0: recv 0; 1: recv some bytes */
-		    dbprintf("Server: buf_pts[%d]->rbuf_free_size:%d\n", i, buf_pts[i]->rbuf_free_size);
-
 		    recv_ret = recv_request(i, buf_pts[i]); 
 		    dbprintf("Server: recv_request from sock %d, recv_ret is %d\n", i, recv_ret);
 
-		    if (recv_ret == 1){
+			isClient = isClientSock(i);
+			if (isClient == -1){
+				printf("Cannot find socket when reading");
+				return EXIT_FAILURE;
+			}else if (isClient == 1){
+				////////////////////////
+				//income req from client (browser)
+				////////////////////////
+				if (recv_ret == 1){
+					temp = buf_pts[i]->server_sock;    // temp is server sock
 
-			dbprintf("Server: parse request from sock %d\n", i);
-			parse_request(buf_pts[i]); //set req_count, and push request into req_queue
-			print_queue(buf_pts[i]->req_queue_p);
+					dbprintf("Incoming req from Client: parse request from sock %d\n", i);
+					parse_request(buf_pts[i]); //set req_count, and push request into req_queue
+					print_queue(buf_pts[i]->req_queue_p);
 
-			// if there is request in req_queue, dequeue one and reply
-			if (buf_pts[i]->req_queue_p->req_count > 0) {
-			    FD_SET(i, &master_write_client_fds);
-			    dbprintf("Server: set %d into master_write_client_fds\n", i);
+					// if there is request in req_queue, dequeue one and open connection to web server and send
+					if (buf_pts[i]->req_queue_p->req_count > 0) {
+
+					    FD_SET(temp, &master_write_fds);    //write to server sock
+					    dbprintf("Setting %d into master_write_fds\n", temp);
+					}
+
+			    } else {
+			    	//if recv not successful
+
+					if (recv_ret == -1) {
+					    perror("Error! recv_ret -1 when receiving from Client\n");
+					} else if ( recv_ret == 0) { 
+					    dbprintf("Client_sock %d closed\n",i);
+					}
+
+					/* clear up  */
+					FD_CLR(i, &master_read_fds);
+					FD_CLR(i, &master_write_fds);
+
+					free(buf_pts[i]);
+					close_socket(i);
+					close_socket(temp);
+			    }
+			}else{
+				///////////////////////////
+				//income data from web server
+				//////////////////////////
+				if (recv_ret == 1){
+					temp = serverSock2ClientSock(i);    //temp is client sock
+					dbprintf("Incoming data from Server: parse data from sock %d\n", i);
+					parse_request(buf_pts[temp]); //set req_count, and push request into req_queue
+					print_queue(buf_pts[temp]->req_queue_p);
+
+					// if there is request in req_queue, dequeue one and open connection to web server and send
+					if (buf_pts[i]->req_queue_p->req_count > 0) {
+					    FD_SET(temp, &master_write_fds);    //write to client sock
+					    dbprintf("Setting %d into master_write_fds\n", temp);
+					}
+
+			    } else {
+			    	//if recv not successful
+
+					if (recv_ret == -1) {
+					    perror("Error! recv_ret -1 when receiving from Server\n");
+					} else if ( recv_ret == 0) { 
+					    dbprintf("Server_sock %d closed\n",i);
+					}
+
+					/* clear up  */
+					FD_CLR(temp, &master_read_fds);
+					FD_CLR(temp, &master_write_fds);
+
+					free(buf_pts[temp]);
+					close_socket(i);
+					close_socket(temp);
+			    }
 			}
 
-		    } else {
-
-			if (recv_ret == -1) {
-			    perror("Error! Server, recv_request, clearup buf");
-			} else if ( recv_ret == 0) { 
-			    dbprintf("Server: client_sock %d closed, clearup buf\n",i);
-			}
-
-			/* clear up  */
-			FD_CLR(i, &master_read_client_fds);
-			FD_CLR(i, &master_write_client_fds);
-			free(buf_pts[i]);
-			close_socket(i); // un-comment this line later
-		    }
 		    
 		} // end i == socket
-	    } // end FD_ISSET read_client_fds
+		} // end FD_ISSET read_fds
 	    
-	    /* check fd in write_client_fds  */
-	    if (FD_ISSET(i, &write_client_fds)) {
-		dbprintf("\nServer: create/continue creating response for sock %d\n", i);
+	    /* check fd in write_fds  */
+	    if (FD_ISSET(i, &write_fds)) {
+	    	isClient = isClientSock(i);
 
-		// have some content in the buffer to send
-		if (create_response(buf_pts[i]) > 0) {
+	    	if (isClient == -1){
+				printf("Cannot find socket when writing");
+				return EXIT_FAILURE;
+	    	}else if (isClient == 1){
+				//////////////////////////
+				//outgoing data to client (browser)
+				//////////////////////////
+	    		temp = buf_pts[i]->server_sock;  //temp is server sock
+	    		dbprintf("creating response to client sock %d\n", i);
+				if (create_response(buf_pts[i]) > 0) {
+					// have some content in the buffer to send
+				    dbprintf("Server: buf is not empty, send response\n");
+				    send_response(temp, buf_pts[i]);
+				    
+				} else {
+				    dbprintf("Server: no more content to create, stop sending, reset buf\n");
+				    
+				    // clear up
+				    buf_pts[i]->res_fully_sent = 1;
+				    reset_buf(buf_pts[i]); // do not free the buf, keep it for next read
 
-		    dbprintf("Server: buf is not empty, send response\n");
-		    send_response(i, buf_pts[i]);
+				    if (buf_pts[i]->req_queue_p->req_count == 0) {
+				    	FD_CLR(i, &master_write_fds);
+				    	reset_buf(buf_pts[temp]);
+						dbprintf("Server: req_count reaches 0, FD_CLR %d from write_fds\n\n",i);
+				    }
+				}
+	    	}else{
+	    		//////////////////////////
+				//outgoing req to web server
+				//////////////////////////
+				temp = serverSock2ClientSock(i);  //temp is client sock
+	    		dbprintf("creating request to server sock %d\n", i);
+				if (create_response(buf_pts[temp]) > 0) {
+					// have some content in the buffer to send
+				    dbprintf("Server: buf is not empty, send response\n");
+				    send_response(i, buf_pts[temp]);
+				    
+				} else {
+				    dbprintf("Server: no more content to create, stop sending, reset buf\n");
+				    // clear up
+				    buf_pts[temp]->res_fully_sent = 1;
+				    reset_buf(buf_pts[temp]); // do not free the buf, keep it for next read
+
+				    if (buf_pts[temp]->req_queue_p->req_count == 0) {
+				    	FD_CLR(i, &master_write_fds);
+						reset_buf(buf_pts[temp]);
+						dbprintf("Server: req_count reaches 0, FD_CLR %d from write_fds\n\n",i);
+				    }
+				}
+	    	}
+	    	//					FD_SET(server_sock, &master_read_fds);
+
 		    
-		} else {
-		    dbprintf("Server: no more content to create, stop sending, reset buf\n");
-		    
-		    // clear up
-		    buf_pts[i]->res_fully_sent = 1;
-		    reset_buf(buf_pts[i]); // do not free the buf, keep it for next read
-
-		    if (buf_pts[i]->req_queue_p->req_count == 0) {
-		    	FD_CLR(i, &master_write_client_fds);
-			reset_buf(buf_pts[i]);
-			dbprintf("Server: req_count reaches 0, FD_CLR %d from write_client_fds\n\n",i);
-		    }
-		}		    
-		
-	    } // end FD_ISSET write_client_fds
+	    } // end FD_ISSET write_fds
 
 	}// end for i
 
-	/*   */
 
-    }
+    }//while
 
     /* clear up  */
-    close_socket(sock);
+    close_socket(master_sock);
     clear_buf_array(buf_pts, maxfd);
 
     return EXIT_SUCCESS;

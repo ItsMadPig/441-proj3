@@ -45,6 +45,7 @@ const char server[] = "Server: Liso/1.0\r\n";
 const char ROOT[] = "../static_site";
 const int CODE_UNSET = -2;// -2 is not used by parse_request
 
+
 void init_req_queue(struct req_queue *p) {
     p->req_head = NULL;
     p->req_tail = NULL;
@@ -93,6 +94,8 @@ void init_buf(struct buf* bufp){
     bufp->offset = 0; // file offest 
 
     bufp->allocated = 1;
+    bufp->client_sock = 0;
+    bufp->server_sock = 0;
 
 }
 
@@ -256,5 +259,59 @@ void print_queue(struct req_queue *q) {
 	p = p->next;
     }
     
+}
+
+//returns -1 if not found, else return the server sock number
+/*int clientSock2ServerSock(int clientSock){
+    struct list_item_t *ite = NULL;
+    struct map_t *map = NULL;
+    
+    // could be empty
+    if (mapList->length == 0)
+    return -1;
+
+    ite = get_iterator(cliMapServ);
+
+    assert(ite != NULL);
+
+    while (has_next(ite)) {
+
+        map = next(&ite);
+        assert(map != NULL);
+
+        if (map->client_sock == clientSock){
+            return (map->server_sock);
+        }
+    }
+    return -1;
+}
+*/
+
+//return -1 if not found, 1 if it's client sock, 0 if it's server sock
+/*int isClientSock(int sock){
+    struct list_item_t *ite = NULL;
+    struct map_t *map = NULL;
+    
+    // could be empty
+    if (mapList->length == 0)
+    return -1;
+
+    ite = get_iterator(cliMapServ);
+
+    assert(ite != NULL);
+
+    while (has_next(ite)) {
+
+        map = next(&ite);
+        assert(map != NULL);
+        if (map->client_sock == sock){
+            return 1;
+        }else if(map->server_sock == sock){
+            return 0;
+        }
+    }
+    return -1;
 
 }
+*/
+
