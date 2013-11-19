@@ -1,0 +1,86 @@
+parse request line
+    char *p1, *p2;
+    struct http_req *http_req_p;
+    int tmp_size = 128;
+    char tmp[tmp_size];
+    int len;
+
+    if (bufp->req_line_header_received == 1)
+	return 0; // received already, just return
+
+    http_req_p = bufp->http_req_p;
+
+    //---------------parsing Host:-----------------
+    p1 = bufp->line_head;
+    if ((p2 = strstr(p1, host)) != NULL && p2 < bufp->line_tail) {
+	p1 = p2 + strlen(host);
+	len = bufp->line_tail - p1;
+	if (len > HEADER_LEN - 1) {
+	    len = HEADER_LEN - 1;
+	    fprintf(stderr, "Warning! parse_request, host buffer overflow\n");
+	}
+	strncpy(http_req_p->host, p1, len);
+	http_req_p->host[len] = '\0';
+	dbprintf("http_req->host:%s\n", http_req_p->host);
+
+	// update line_head and head_tail
+	bufp->line_head = bufp->line_tail + strlen(CRLF);
+	bufp->line_tail = strstr(bufp->line_head, CRLF);
+    }
+
+    //---------------parsing user_agent-----------------
+    p1 = bufp->line_head;
+    if ((p2 = strstr(p1, user_agent)) != NULL && p2 < bufp->line_tail) {
+	p1 = p2 + strlen(user_agent);
+	len = bufp->line_tail - p1;
+	if (len > HEADER_LEN - 1) {
+	    len = HEADER_LEN - 1;
+	    fprintf(stderr, "Warning! parse_reaquest, user_agent buffer overflow\n");
+	}
+	strncpy(http_req_p->user_agent, p1, len);
+	http_req_p->user_agent[len] = '\0';
+	dbprintf("http_req->user_agent:%s\n", http_req_p->user_agent);
+
+	// update line_head and head_tail
+	bufp->line_head = bufp->line_tail + strlen(CRLF);
+	bufp->line_tail = strstr(bufp->line_head, CRLF);
+    }
+
+    //---------------parsing content_len-----------------
+    p1 = bufp->line_head;
+    if ((p2 = strstr(p1, cont_len)) != NULL && p2 < bufp->line_tail) {
+	p1 = p2 + strlen(cont_len);
+	len = bufp->line_tail - p1;
+	if (len > tmp_size-1) {
+	    len = tmp_size- 1;
+	    fprintf(stderr, "Warning! parse_request, cont_len buffer overflow\n");
+	}
+	strncpy(tmp, p1, len);
+	tmp[len] = '\0';
+	http_req_p->cont_len = atoi(tmp);
+	dbprintf("http_req->cont_len:%d\n", http_req_p->cont_len);
+
+	// update line_head and head_tail
+	bufp->line_head = bufp->line_tail + strlen(CRLF);
+	bufp->line_tail = strstr(bufp->line_head, CRLF);
+    }
+
+    //---------------parsing content_type-----------------
+    p1 = bufp->line_head;
+    if ((p2 = strstr(p1, cont_type)) != NULL && p2 < bufp->line_tail) {
+	p1 += strlen(cont_type);
+	len = bufp->line_tail - p1;
+	if (len >= HEADER_LEN - 1){
+	    len = HEADER_LEN - 1;
+	    fprintf(stderr, "Warning! parse_request, cont_type buffer overflow\n");
+	}
+	strncpy(http_req_p->cont_type, p1, len);
+	http_req_p->cont_type[len] = '\0';
+	dbprintf("http_req->cont_type:%s\n", http_req_p->cont_type);
+    }
+
+    // update line_head and head_tail
+    bufp->line_head = bufp->line_tail + strlen(CRLF);
+    bufp->line_tail = strstr(bufp->line_head, CRLF);
+    
+    return 0;
