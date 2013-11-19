@@ -144,9 +144,11 @@ void req_enqueue(struct req_queue *q, struct http_req *p);
 struct http_req *req_dequeue(struct req_queue *q);
 void print_queue(struct req_queue *q);
 
-int clientSock2ServerSock(int clientSock);
-int serverSock2ClientSock(int serverSock);
-int isClientSock(int sock);
+
+int serverSock2ClientSock(struct buf *buf_pts[], int serverSock, int maxfd);
+int isClientSock(struct buf *buf_pts[], int sock, int maxfd);
+
+void dequeue_request(struct buf *bufp);
 
 
 #endif

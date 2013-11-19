@@ -18,23 +18,66 @@
 #include <arpa/inet.h>
 #include "helper.h"
 #include "http_parser.h"
+//#include "http_reply.h"
 
 #define DEBUG 1
-int serverSock2ClientSock(int server_sock){
-	return 1;
+
+int create_response(int sock, struct buf *bufp){
+	printf("create_response\n");
+    int locate_ret;
+    
+    if (bufp->res_fully_created == 1)
+	return bufp->buf_size; // no more reply to created, just send what left in buf
+
+    //if ((locate_ret = locate_file(bufp)) == -1) {
+	//dbprintf("create_response: file not located, create msg404\n");
+
+	//push_error(bufp, MSG404);
+	//return bufp->buf_size; 
+    //} else if (locate_ret == 0){
+	//dbprintf("create_response: static file located, path:%s\n", bufp->path);
+
+	//if (create_line_header(bufp) == -1) return bufp->buf_size; // msg404
+	//if (create_res_body(bufp) == -1) return bufp->buf_size; // msg 500, only works if it's GET method
+
+	dbprintf("create_response: bufp->size:%d\n", bufp->buf_size);
+	//return bufp->buf_size;
+    //} 
+    return bufp->buf_size;  
 }
 
-int isClientSock(int sock){
-	return 1;
+int send_response(int sock, struct buf *bufp){
+	printf("send_response\n");
+    int sendret;
+
+    if (bufp->buf_size == 0) {
+	dbprintf("send_response: buffer is empty, sending finished\n");
+	return 0;
+    }
+
+	sendret = send(sock, bufp->rbuf_head, bufp->buf_size, 0);
+
+    if (sendret == -1) {
+	perror("Error! send_response: send");
+	return -1;
+    }
+
+
+    bufp->buf_head += sendret;
+    bufp->buf_size -= sendret;
+    
+    dbprintf("send_response: %d bytes are sent\n", sendret);
+
+    // whole buf is sent, reset it for possible more respose
+    if (bufp->buf_size == 0) {
+		reset_buf(bufp);
+		dbprintf("send_response: whole buf is sent, reset it\n");
+    }
+
+
+    return sendret;
 }
 
-int create_response(struct buf *bufp){
-	return 1;
-}
-
-int send_response(int i, struct buf *bufp){
-	return 1;
-}
 
 
 int close_socket(int sock)
@@ -209,7 +252,8 @@ int main(int argc, char* argv[])
 		    recv_ret = recv_request(i, buf_pts[i]); 
 		    dbprintf("Server: recv_request from sock %d, recv_ret is %d\n", i, recv_ret);
 
-			isClient = isClientSock(i);
+			isClient = isClientSock(buf_pts,i,maxfd);
+			printf("isClient returned: %d\n", isClient);
 			if (isClient == -1){
 				printf("Cannot find socket when reading");
 				return EXIT_FAILURE;
@@ -253,7 +297,7 @@ int main(int argc, char* argv[])
 				//income data from web server
 				//////////////////////////
 				if (recv_ret == 1){
-					temp = serverSock2ClientSock(i);    //temp is client sock
+					temp = serverSock2ClientSock(buf_pts, i, maxfd);    //temp is client sock
 					dbprintf("Incoming data from Server: parse data from sock %d\n", i);
 					parse_request(buf_pts[temp]); //set req_count, and push request into req_queue
 					print_queue(buf_pts[temp]->req_queue_p);
@@ -289,7 +333,7 @@ int main(int argc, char* argv[])
 	    
 	    /* check fd in write_fds  */
 	    if (FD_ISSET(i, &write_fds)) {
-	    	isClient = isClientSock(i);
+	    	isClient = isClientSock(buf_pts, i, maxfd);
 
 	    	if (isClient == -1){
 				printf("Cannot find socket when writing");
@@ -300,13 +344,13 @@ int main(int argc, char* argv[])
 				//////////////////////////
 	    		temp = buf_pts[i]->server_sock;  //temp is server sock
 	    		dbprintf("creating response to client sock %d\n", i);
-				if (create_response(buf_pts[i]) > 0) {
+				if (create_response(i, buf_pts[i]) > 0) {
 					// have some content in the buffer to send
-				    dbprintf("Server: buf is not empty, send response\n");
+				    dbprintf("to client: buf is not empty, send response\n");
 				    send_response(temp, buf_pts[i]);
 				    
 				} else {
-				    dbprintf("Server: no more content to create, stop sending, reset buf\n");
+				    dbprintf("to client: no more content to create, stop sending, reset buf\n");
 				    
 				    // clear up
 				    buf_pts[i]->res_fully_sent = 1;
@@ -322,15 +366,15 @@ int main(int argc, char* argv[])
 	    		//////////////////////////
 				//outgoing req to web server
 				//////////////////////////
-				temp = serverSock2ClientSock(i);  //temp is client sock
+				temp = serverSock2ClientSock(buf_pts, i, maxfd);  //temp is client sock
 	    		dbprintf("creating request to server sock %d\n", i);
-				if (create_response(buf_pts[temp]) > 0) {
+				if (create_response(temp, buf_pts[temp]) > 0) {
 					// have some content in the buffer to send
-				    dbprintf("Server: buf is not empty, send response\n");
+				    dbprintf("to server: buf is not empty, send response\n");
 				    send_response(i, buf_pts[temp]);
 				    
 				} else {
-				    dbprintf("Server: no more content to create, stop sending, reset buf\n");
+				    dbprintf("to server: no more content to create, stop sending, reset buf\n");
 				    // clear up
 				    buf_pts[temp]->res_fully_sent = 1;
 				    reset_buf(buf_pts[temp]); // do not free the buf, keep it for next read

@@ -4,7 +4,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <sys/time.h>
-#include "http_replyer.h"
+#include "http_reply.h"
 #include "helper.h"
 
 /* return the size of buffer inside struct buf, 0 or a positive number  */ 
@@ -12,7 +12,7 @@ int create_response(struct buf *bufp) {
     
     int locate_ret;
 
-    if (bufp->is_cgi_req == 0)
+    //if (bufp->is_cgi_req == 0)
 	dequeue_request(bufp);
     
     if (bufp->res_fully_created == 1)
@@ -30,7 +30,6 @@ int create_response(struct buf *bufp) {
 	if (create_res_body(bufp) == -1) return bufp->buf_size; // msg 500, only works if it's GET method
 
 	dbprintf("create_response: bufp->size:%d\n", bufp->buf_size);
-	//return bufp->buf_size;
     } 
     return bufp->buf_size;    
 }
@@ -124,7 +123,6 @@ int create_res_body(struct buf *bufp) {
 
     int push_ret;
 
-    //if (bufp->res_body_created == 1)
     if (bufp->res_fully_created == 1) {
 	dbprintf("create_res_body: res_fully_created == 1\n");
 	return 0;
@@ -135,7 +133,6 @@ int create_res_body(struct buf *bufp) {
 	if ((push_ret = push_fd(bufp)) == 0) {
 
 	    dbprintf("create_res_body: file %s is read through\n", bufp->path);
-	    //bufp->res_body_created = 1; 
 	    bufp->res_fully_created = 1;
 
 	} else if (push_ret == -1) {
@@ -146,13 +143,11 @@ int create_res_body(struct buf *bufp) {
 	} else if (push_ret == 1) {
 
 	    dbprintf("create_res_body: file %s is not read through yet\n", bufp->path);
-	    //bufp->res_body_created = 0;
 	    bufp->res_fully_created = 0;
 	}
 
     } else {
-	//bufp->res_body_created = 1; // no need to create at all
-	bufp->res_fully_created = 1;
+	   bufp->res_fully_created = 1;
     }
 
     return 0;
@@ -215,7 +210,6 @@ int send_response(int sock, struct buf *bufp) {
 
     bufp->buf_head += sendret;
     bufp->buf_size -= sendret;
-    //    bufp->buf_free_size += sendret; ???????? what !!!!!!!!
     
     dbprintf("send_response: %d bytes are sent\n", sendret);
 
@@ -243,8 +237,6 @@ char *date_str() {
     strcat(time_str, asctime(timeinfo));
     time_str[strlen(time_str)-1] = '\0';
     strcat(time_str, "\r\n");
-    //strcpy(time_str + strlen("Date: ") + strlen(time_str) - 1, "GMT\r\n");
-    //???unable to add GMT???
 
     return time_str;
 

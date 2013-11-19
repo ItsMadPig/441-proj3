@@ -261,57 +261,65 @@ void print_queue(struct req_queue *q) {
     
 }
 
-//returns -1 if not found, else return the server sock number
-/*int clientSock2ServerSock(int clientSock){
-    struct list_item_t *ite = NULL;
-    struct map_t *map = NULL;
-    
-    // could be empty
-    if (mapList->length == 0)
-    return -1;
 
-    ite = get_iterator(cliMapServ);
+//return -1 if not found, else return the client sock number
+int serverSock2ClientSock(struct buf *buf_pts[], int serverSock, int maxfd){
+    int i;
 
-    assert(ite != NULL);
-
-    while (has_next(ite)) {
-
-        map = next(&ite);
-        assert(map != NULL);
-
-        if (map->client_sock == clientSock){
-            return (map->server_sock);
+    for (i = 0; i <= maxfd; i++){
+        if(buf_pts[i] != NULL){
+            if(buf_pts[i]->server_sock == serverSock){
+                return buf_pts[i]->client_sock;
+            }
         }
     }
+
+    printf("ERROR: serverSock2ClientSock returned -1\n");
     return -1;
 }
-*/
 
 //return -1 if not found, 1 if it's client sock, 0 if it's server sock
-/*int isClientSock(int sock){
-    struct list_item_t *ite = NULL;
-    struct map_t *map = NULL;
-    
-    // could be empty
-    if (mapList->length == 0)
-    return -1;
+int isClientSock(struct buf *buf_pts[],int sock, int maxfd){
+    int i;
 
-    ite = get_iterator(cliMapServ);
-
-    assert(ite != NULL);
-
-    while (has_next(ite)) {
-
-        map = next(&ite);
-        assert(map != NULL);
-        if (map->client_sock == sock){
-            return 1;
-        }else if(map->server_sock == sock){
-            return 0;
+    for (i = 0; i <= maxfd; i++){
+        if (buf_pts[i] != NULL){
+            if(buf_pts[i]->client_sock == sock){
+                return 1;
+            }else if (buf_pts[i]->server_sock == sock){
+                return 0;
+            }
         }
     }
+    printf("ERROR: isClientSock returned -1\n");
     return -1;
+}
+
+/*void dequeue_request(struct buf *bufp) {
+
+    // dequeue a request if previous response if fully sent
+    if (bufp->res_fully_sent == 1) {
+
+        // reset part of buf
+            memset(bufp->path, 0, PATH_MAX);
+            bufp->offset = 0;
+
+            bufp->http_reply_p = req_dequeue(bufp->req_queue_p);
+
+            bufp->res_line_header_created = 0;
+            bufp->res_body_created = 0;
+        bufp->res_fully_created = 0;
+        bufp->res_fully_sent = 0; 
+
+        bufp->cgi_fully_sent = 0;
+        bufp->cgi_fully_received = 0;
+
+    } else {
+
+        dbprintf("dequeue_request: fails, since fully_sent==0, current req is not fully sent yet\n");
+        dbprintf("dequeue_request: current req:%s %s %s\n", bufp->http_reply_p->method,bufp->http_reply_p->uri, bufp->http_reply_p->version);
+    }
 
 }
-*/
 
+*/
